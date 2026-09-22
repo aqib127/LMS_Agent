@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/
+logs/
+.git/
+*.md
+.pytest_cache/
+.streamlit/

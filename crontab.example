@@ -1,0 +1,2 @@
+# LMS Agent — every 30 minutes from 7 AM to 10 PM
+*/30 7-22 * * * cd /home/aqib-ali/Desktop/Bahria_lms && ./.venv/bin/python -m scripts.run_once >> logs/cron.log 2>&1

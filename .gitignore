@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/lms.db
+data/auth.json
+data/seen_hashes.json
+data/snapshots/*
+logs/*.log
+.pytest_cache/
+
+# Fly
+fly.toml
+.fly/
