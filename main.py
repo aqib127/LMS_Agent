@@ -1,6 +1,6 @@
 """
 Entry point for Wispbyte.
-Wispbyte's Python image runs PY_FILE (default: main.py) at the repo root.
+Wispbyte's Python image runs PY_FILE at the repo root.
 This file just calls the Discord bot.
 """
 from bot.discord_bot import main
