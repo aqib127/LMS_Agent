@@ -1,6 +1,9 @@
 """
 Command dispatcher for the LMS chatbot.
 Handles /commands and free-form questions.
+
+NOTE: scraper imports are LAZY (inside functions) so this module can be
+imported on hosts without Playwright installed (e.g. Wispbyte 512MB).
 """
 import re
 from datetime import datetime
@@ -8,8 +11,6 @@ from core.ai_engine import (
     answer as llm_answer,
     lowest_attendance, unpaid_fees, upcoming_exams, recent_results,
 )
-from core.scraper_runner import scrape_all_live
-from core.lms_runner import scrape_lms_all
 from core.storage import query, stats
 from core.utils import logger
 
@@ -63,7 +64,6 @@ def _course_matches(term: str, course_name: str) -> bool:
     initials = "".join(w[0] for w in words)
     if term == initials:
         return True
-    # term is a substring of initials (e.g. "ail" in "ail")
     if len(term) >= 2 and term in initials:
         return True
     return False
@@ -289,7 +289,10 @@ def cmd_download(args: list[str]) -> str:
     /download <course> <week>
     /download url <relative_url>
     """
-    from core.downloader import download_file
+    try:
+        from core.downloader import download_file
+    except ImportError as e:
+        return f"❌ Downloads not available on this host (missing playwright). {e}"
 
     if not args:
         return (
@@ -395,6 +398,14 @@ def cmd_stats() -> str:
 
 
 def cmd_refresh() -> str:
+    """Refresh CMS. Lazy-imports scrapers to avoid needing playwright at startup."""
+    try:
+        from core.scraper_runner import scrape_all_live
+    except ImportError as e:
+        return (
+            "❌ Scrapers not available on this host "
+            f"(missing playwright): {e}"
+        )
     try:
         summary = scrape_all_live()
         lines = ["*CMS refreshed.*"]
@@ -413,6 +424,14 @@ def cmd_refresh() -> str:
 
 
 def cmd_refresh_lms() -> str:
+    """Refresh LMS. Lazy-imports scrapers to avoid needing playwright at startup."""
+    try:
+        from core.lms_runner import scrape_lms_all
+    except ImportError as e:
+        return (
+            "❌ LMS scrapers not available on this host "
+            f"(missing playwright): {e}"
+        )
     try:
         summary = scrape_lms_all()
         lines = ["*LMS deep refresh done.*"]
@@ -480,7 +499,7 @@ def handle(text: str) -> str:
             logger.exception("command failed")
             return f"❌ Command failed: {e}"
 
-        # Deterministic shortcuts — don't trust the LLM for these
+    # Deterministic shortcuts — don't trust the LLM for these
     lower = text.lower()
     if "lowest attendance" in lower or "worst attendance" in lower \
        or "attendance lowest" in lower or "least attendance" in lower:
