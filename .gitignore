@@ -12,3 +12,5 @@ logs/*.log
 # Fly
 fly.toml
 .fly/
+Dockerfile
+crontab.example
