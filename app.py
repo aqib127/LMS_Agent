@@ -372,7 +372,14 @@ elif page == "📄 Lecture Notes":
 elif page == "📥 Downloads":
     st.title("📥 Downloads")
 
-    from core.downloader import download_file, list_downloads
+    try:
+        from core.downloader import download_file, list_downloads
+        downloader_ok = True
+    except ImportError as e:
+        download_file = None
+        list_downloads = lambda: []
+        downloader_ok = False
+        st.warning(f"⚠️ Download feature unavailable: {e}")
 
     tab1, tab2 = st.tabs(["📄 Available files", "📁 Downloaded files"])
 

@@ -1,16 +1,26 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
-.env
-data/lms.db
-data/auth.json
-data/seen_hashes.json
-data/snapshots/*
-logs/*.log
-.pytest_cache/
+*.swp
+.*.swp
 
-# Fly
-fly.toml
-.fly/
-Dockerfile
-crontab.example
+# Env & secrets
+.env
+.env.*
+
+# Data & logs
+data/
+logs/
+*.db
+*.db.*
+*.zip
+*.tar.gz
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
