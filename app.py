@@ -384,7 +384,6 @@ elif page == "📥 Downloads":
     tab1, tab2 = st.tabs(["📄 Available files", "📁 Downloaded files"])
 
     with tab1:
-        # Gather all downloadable items across kinds
         items = []
 
         for r in query("lms_lecture_notes"):
@@ -431,7 +430,6 @@ elif page == "📥 Downloads":
         if not items:
             st.info("No downloadable files found. Run 'Refresh LMS' first.")
         else:
-            # Filter controls
             c1, c2 = st.columns(2)
             with c1:
                 kinds = sorted(set(i["kind"] for i in items))
@@ -448,7 +446,6 @@ elif page == "📥 Downloads":
 
             st.caption(f"{len(filtered)} file(s)")
 
-            # Show files with download buttons
             for i, it in enumerate(filtered):
                 col1, col2 = st.columns([4, 1])
                 with col1:
@@ -510,18 +507,108 @@ elif page == "📢 Announcements":
 
 elif page == "💬 Ask AI":
     st.title("💬 Ask the LMS Agent")
-    st.caption("Ask anything about your attendance, grades, deadlines, fees, notes, etc.")
+    st.caption(
+        "Ask anything about your attendance, grades, deadlines, fees, notes, etc. "
+        "You can also upload a file to submit to an assignment."
+    )
 
+    STAGING = Path("data/uploads/staging")
+    STAGING.mkdir(parents=True, exist_ok=True)
+
+    # --- File staging for uploads ---
+    with st.expander("📎 Attach a file for upload (optional)", expanded=True):
+        uploaded = st.file_uploader(
+            "Choose a file to submit",
+            accept_multiple_files=False,
+            key="chat_file_uploader",
+        )
+        if uploaded is not None:
+            dest = STAGING / uploaded.name
+            dest.write_bytes(uploaded.getbuffer())
+            st.success(
+                f"✓ Saved to staging: `{uploaded.name}` "
+                f"({dest.stat().st_size // 1024} KB)"
+            )
+
+        # Show everything currently in staging
+        staged_files = sorted(
+            [f for f in STAGING.glob("*")
+             if f.is_file() and f.name not in (".gitkeep", ".DS_Store")],
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+
+        if staged_files:
+            st.markdown("**Files currently in staging:**")
+            for f in staged_files:
+                size_kb = f.stat().st_size // 1024
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.write(f"📄 `{f.name}` — {size_kb} KB")
+                with col2:
+                    if st.button("🗑️", key=f"del_{f.name}", help="Delete"):
+                        try:
+                            f.unlink()
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed: {e}")
+
+            st.caption(
+                f"Staging path: `{STAGING.resolve()}` — "
+                "the chat will auto-append the newest file to `/upload`."
+            )
+        else:
+            st.caption("No files in staging yet. Upload one above.")
+
+    # --- Chat history ---
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
-    # Render last 30 messages
     for role, msg in st.session_state.chat_history[-30:]:
         with st.chat_message(role):
             st.markdown(clean_for_streamlit(msg))
 
+    # --- Chat input ---
     prompt = st.chat_input("Ask a question...")
     if prompt:
+        text = prompt.strip()
+
+        # If /upload with no path, append newest staged file
+        if text.lower().startswith("/upload"):
+            tokens = text.split()
+            last = tokens[-1] if len(tokens) > 1 else ""
+            looks_like_path = (
+                "/" in last
+                or last.lower().endswith(
+                    (".docx", ".doc", ".pdf", ".pptx", ".ppt",
+                     ".xlsx", ".xls", ".txt", ".zip",
+                     ".png", ".jpg", ".jpeg", ".gif", ".mp4")
+                )
+            )
+            if not looks_like_path:
+                staged_files = sorted(
+                    [f for f in STAGING.glob("*")
+                     if f.is_file() and f.name not in (".gitkeep", ".DS_Store")],
+                    key=lambda p: p.stat().st_mtime,
+                    reverse=True,
+                )
+                if staged_files:
+                    newest = staged_files[0].resolve()
+                    text = f"{text} {newest}"
+                else:
+                    st.session_state.chat_history.append(("user", prompt))
+                    with st.chat_message("user"):
+                        st.markdown(prompt)
+                    msg = (
+                        "❌ No file in staging.\n\n"
+                        "Open the **📎 Attach a file for upload** panel above, "
+                        "upload your file, then try `/upload ...` again."
+                    )
+                    with st.chat_message("assistant"):
+                        st.markdown(msg)
+                    st.session_state.chat_history.append(("assistant", msg))
+                    st.stop()
+
         st.session_state.chat_history.append(("user", prompt))
         with st.chat_message("user"):
             st.markdown(prompt)
@@ -530,8 +617,17 @@ elif page == "💬 Ask AI":
             with st.spinner("Thinking..."):
                 from bot.commands import handle
                 try:
-                    reply = handle(prompt)
+                    reply = handle(text)
                 except Exception as e:
                     reply = f"❌ Error: {e}"
             st.markdown(clean_for_streamlit(reply))
         st.session_state.chat_history.append(("assistant", reply))
+
+        # If submission succeeded, clear staging
+        if "✅" in reply and "Submitted" in reply:
+            try:
+                for f in STAGING.glob("*"):
+                    if f.is_file():
+                        f.unlink()
+            except Exception:
+                pass
